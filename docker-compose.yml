@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ML_SERVICE_URL=http://ml:5000
+      - AIRFLOW_URL=http://airflow:8080
+    depends_on:
+      - ml
+      - airflow
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5000:5000"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+
+  ml:
+    build: ./ml
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./ml/data:/app/data
+      - ./ml/models:/app/models
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+
+  airflow:
+    build: ./airflow
+    ports:
+      - "8080:8080"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+
+  mlflow:
+    build: ./mlflow
+    ports:
+      - "5002:5000"
+    volumes:
+      - ./mlflow/mlflow-artifacts:/mlflow-artifacts
+    environment:
+      - MLFLOW_TRACKING_URI=sqlite:///mlflow.db
+
+  prometheus:
+    build: ./monitoring/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    build: ./monitoring/grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+
+  alertmanager:
+    build: ./monitoring/alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    depends_on:
+      - prometheus 
